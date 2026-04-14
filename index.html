@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speed Reader</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: #0a0a0a; }
+
+    #app {
+      --bg: #0a0a0a; --bg2: #0d0d0d; --bg3: #111;
+      --border: #222; --border2: #1e1e1e; --border3: #333;
+      --text: #f0f0f0; --text2: #aaa; --text3: #bbb; --text4: #555; --text5: #444;
+      --accent: #e63;
+      background: var(--bg); color: var(--text);
+      font-family: 'Courier New', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.2s, color 0.2s;
+    }
+    #app.light {
+      --bg: #f5f5f2; --bg2: #eeeee9; --bg3: #e8e8e2;
+      --border: #d8d8d0; --border2: #e0e0d8; --border3: #c8c8c0;
+      --text: #111; --text2: #555; --text3: #444; --text4: #aaa; --text5: #bbb;
+    }
+
+    /* ── Main flash display ── */
+    #display-area {
+      flex: 1 1 auto;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none; overflow: hidden;
+      min-height: 120px;
+    }
+    #word-before {
+      position: absolute; right: 50%;
+      font-size: 48px; font-weight: 400; letter-spacing: -0.02em;
+      font-family: 'Courier New', monospace; white-space: nowrap; color: var(--text);
+    }
+    #word-pivot {
+      position: absolute; left: 50%;
+      font-size: 48px; font-weight: 400; letter-spacing: -0.02em;
+      font-family: 'Courier New', monospace; white-space: nowrap; color: var(--accent);
+    }
+    #word-after {
+      position: absolute;
+      font-size: 48px; font-weight: 400; letter-spacing: -0.02em;
+      font-family: 'Courier New', monospace; white-space: nowrap; color: var(--text);
+    }
+    #status-overlay {
+      position: absolute; font-size: 11px; color: var(--text4);
+      bottom: 10px; left: 0; right: 0; text-align: center; letter-spacing: 0.06em;
+    }
+
+    /* ── Context viewer ── */
+    #context-viewer {
+      display: none;
+      flex: 0 0 auto;
+      border-bottom: 1px solid var(--border2);
+      background: var(--bg2);
+      position: relative;
+    }
+    #context-viewer.visible { display: block; }
+    #context-scroll {
+      padding: 12px 20px;
+      font-size: 14px; line-height: 2;
+      color: var(--text2);
+      max-height: 160px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    #context-scroll::-webkit-scrollbar { width: 4px; }
+    #context-scroll::-webkit-scrollbar-track { background: transparent; }
+    #context-scroll::-webkit-scrollbar-thumb { background: var(--border3); border-radius: 2px; }
+    #context-text { white-space: normal; word-break: break-word; }
+
+    .ctx-word {
+      cursor: pointer;
+      border-radius: 2px;
+      padding: 1px 1px;
+      transition: background 0.1s, color 0.1s;
+    }
+    .ctx-word:hover {
+      background: var(--border3);
+      color: var(--text);
+    }
+    .ctx-current {
+      background: #ff6600;
+      color: #111;
+      border-radius: 3px;
+      padding: 1px 3px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    #app.light .ctx-current {
+      background: #ff6600;
+      color: #fff;
+    }
+    .ctx-hint {
+      font-size: 11px; color: var(--text4);
+      text-align: center; padding: 4px 0 0;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Progress bar ── */
+    #progress-bar-wrap { height: 2px; background: var(--border2); flex: 0 0 auto; }
+    #progress-bar { height: 2px; background: var(--accent); width: 0%; transition: width 0.1s linear; }
+
+    /* ── Paste box ── */
+    #text-input-area {
+      flex: 0 0 auto;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border2);
+      background: var(--bg);
+    }
+    #text-input-area.hidden { display: none; }
+    #text-input {
+      width: 100%; min-height: 80px; max-height: 200px;
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text3);
+      font-family: inherit; font-size: 13px; padding: 10px 12px;
+      resize: vertical; border-radius: 3px; line-height: 1.6; outline: none;
+    }
+    #text-input:focus { border-color: var(--text4); }
+    #word-counter { font-size: 11px; color: var(--text5); letter-spacing: 0.06em; margin-top: 6px; }
+
+    /* ── Controls ── */
+    #controls {
+      flex: 0 0 auto;
+      padding: 12px 20px; display: flex; flex-direction: column; gap: 10px;
+      background: var(--bg2);
+    }
+    .ctrl-row { display: flex; align-items: center; gap: 10px; }
+    .ctrl-label { font-size: 11px; color: var(--text4); letter-spacing: 0.08em; text-transform: uppercase; min-width: 42px; }
+    input[type=range] { flex: 1; accent-color: var(--accent); height: 2px; }
+    .ctrl-val { font-size: 13px; color: var(--text2); min-width: 52px; text-align: right; }
+    .btn-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .btn {
+      background: transparent; border: 1px solid var(--border3); color: var(--text2);
+      padding: 6px 14px; font-size: 12px; font-family: inherit; cursor: pointer;
+      border-radius: 3px; transition: background 0.12s, color 0.12s, border-color 0.12s;
+      letter-spacing: 0.04em;
+    }
+    .btn:hover { background: var(--bg3); color: var(--text); border-color: var(--text4); }
+    .btn.primary { border-color: var(--accent); color: var(--accent); }
+    .btn.primary:hover { background: var(--accent); color: var(--bg); }
+    .btn.icon { padding: 6px 10px; font-size: 15px; }
+    .btn:disabled { opacity: 0.3; cursor: default; }
+    .wpm-stepper { display: flex; align-items: center; gap: 4px; }
+    .wpm-stepper .wpm-num {
+      font-size: 13px; font-weight: 500; min-width: 48px; text-align: center;
+      color: var(--text); background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 3px; padding: 5px 6px;
+    }
+    .sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div id="display-area" onclick="togglePlay()">
+    <span id="word-before"></span>
+    <span id="word-pivot">paste text below</span>
+    <span id="word-after"></span>
+    <div id="status-overlay"></div>
+  </div>
+
+  <div id="context-viewer">
+    <div id="context-scroll">
+      <div id="context-text"></div>
+    </div>
+    <div class="ctx-hint">click any word to jump there</div>
+  </div>
+
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
+  <div id="text-input-area">
+    <textarea id="text-input" placeholder="Paste your text here..." oninput="onTextChange()"></textarea>
+    <div id="word-counter">0 words</div>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">WPM</span>
+      <div class="wpm-stepper">
+        <button class="btn icon" onclick="stepWpm(-10)">&#8722;</button>
+        <span class="wpm-num" id="wpm-num">700</span>
+        <button class="btn icon" onclick="stepWpm(10)">+</button>
+      </div>
+      <input type="range" id="wpm-slider" min="50" max="1000" step="10" value="700" oninput="updateWpm(parseInt(this.value))">
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Size</span>
+      <input type="range" id="size-slider" min="20" max="96" step="2" value="48" oninput="updateSize(this.value)">
+      <span class="ctrl-val" id="size-val">48 px</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="play-btn" onclick="togglePlay()">play</button>
+      <button class="btn" onclick="resetReader()">reset</button>
+      <div class="sep"></div>
+      <button class="btn" onclick="stepBack()" id="back-btn" disabled>&#8592; back</button>
+      <button class="btn" onclick="stepForward()" id="fwd-btn" disabled>forward &#8594;</button>
+      <div class="sep"></div>
+      <button class="btn" id="paste-toggle-btn" onclick="togglePasteBox()">hide text</button>
+      <button class="btn" id="theme-btn" onclick="toggleTheme()">light mode</button>
+    </div>
+  </div>
+
+</div>
+<script>
+  let words = [], idx = 0, playing = false, timer = null, wpm = 700, fontSize = 48, isLight = false;
+  let pasteBoxVisible = true;
+
+  const elBefore       = document.getElementById('word-before');
+  const elPivot        = document.getElementById('word-pivot');
+  const elAfter        = document.getElementById('word-after');
+  const playBtn        = document.getElementById('play-btn');
+  const progressBar    = document.getElementById('progress-bar');
+  const statusOverlay  = document.getElementById('status-overlay');
+  const backBtn        = document.getElementById('back-btn');
+  const fwdBtn         = document.getElementById('fwd-btn');
+  const app            = document.getElementById('app');
+  const contextViewer  = document.getElementById('context-viewer');
+  const contextScroll  = document.getElementById('context-scroll');
+  const contextText    = document.getElementById('context-text');
+  const textInputArea  = document.getElementById('text-input-area');
+  const pasteToggleBtn = document.getElementById('paste-toggle-btn');
+
+  // ── Text parser ───────────────────────────────────────────────────────────
+  function parseText(raw) {
+    if (!raw.trim()) return [];
+    let text = raw.replace(/--/g, '—');
+    text = text.replace(/([.!?])([)"'\u201C\u201D\u2018\u2019]*)(?=[A-Za-z0-9])/g, '$1$2 ');
+    text = text.replace(/—/g, ' — ');
+    const tokens = text.trim().split(/\s+/).filter(w => w.length > 0);
+    const result = [];
+    tokens.forEach(token => {
+      if (token === '—' && result.length > 0) result[result.length - 1] += '—';
+      else result.push(token);
+    });
+    return result;
+  }
+
+  // ── Pivot ─────────────────────────────────────────────────────────────────
+  function pivotIndex(word) {
+    const len = word.replace(/[^a-zA-Z0-9]/g, '').length;
+    if (len <= 1) return 0; if (len <= 5) return 1;
+    if (len <= 9) return 2; if (len <= 13) return 3; return 4;
+  }
+
+  function renderWord(word) {
+    if (!word) { elBefore.textContent = ''; elPivot.textContent = ''; elAfter.textContent = ''; return; }
+    const pi = pivotIndex(word);
+    elBefore.textContent = word.slice(0, pi);
+    elPivot.textContent  = word.slice(pi, pi + 1);
+    elAfter.textContent  = word.slice(pi + 1);
+    requestAnimationFrame(() => {
+      const pw = elPivot.getBoundingClientRect().width;
+      elAfter.style.left = 'calc(50% + ' + pw + 'px)';
+    });
+  }
+
+  // ── Context viewer ────────────────────────────────────────────────────────
+  // Renders ALL words as clickable spans. Scrolls current word into view.
+  function buildContext() {
+    if (!words.length) { contextText.innerHTML = ''; return; }
+    const frag = document.createDocumentFragment();
+    words.forEach((word, i) => {
+      const span = document.createElement('span');
+      span.textContent = word;
+      span.className = i === idx ? 'ctx-current' : 'ctx-word';
+      span.dataset.i = i;
+      span.addEventListener('click', function() { jumpTo(parseInt(this.dataset.i)); });
+      frag.appendChild(span);
+      if (i < words.length - 1) frag.appendChild(document.createTextNode(' '));
+    });
+    contextText.innerHTML = '';
+    contextText.appendChild(frag);
+    scrollCurrentIntoView();
+  }
+
+  // Update just the highlight classes without rebuilding the whole DOM
+  function updateContextHighlight() {
+    const spans = contextText.querySelectorAll('span');
+    spans.forEach(span => {
+      const i = parseInt(span.dataset.i);
+      span.className = i === idx ? 'ctx-current' : 'ctx-word';
+    });
+    scrollCurrentIntoView();
+  }
+
+  function scrollCurrentIntoView() {
+    requestAnimationFrame(() => {
+      const current = contextText.querySelector('.ctx-current');
+      if (!current) return;
+      const scrollTop = contextScroll.scrollTop;
+      const scrollH   = contextScroll.clientHeight;
+      const elTop     = current.offsetTop;
+      const elH       = current.offsetHeight;
+      // Keep current word vertically centred in the scroll area
+      const target = elTop - (scrollH / 2) + (elH / 2);
+      contextScroll.scrollTop = target;
+    });
+  }
+
+  // Jump to a word index and stay paused
+  function jumpTo(i) {
+    idx = Math.max(0, Math.min(i, words.length - 1));
+    renderWord(words[idx]);
+    updateStatus();
+    backBtn.disabled = idx === 0;
+    fwdBtn.disabled  = idx >= words.length - 1;
+    updateContextHighlight();
+  }
+
+  // ── Status ────────────────────────────────────────────────────────────────
+  function updateStatus() {
+    if (!words.length) { statusOverlay.textContent = ''; return; }
+    const secLeft = Math.ceil(((words.length - idx) / wpm) * 60);
+    const timeStr = secLeft > 60 ? Math.floor(secLeft/60) + 'm ' + (secLeft%60) + 's' : secLeft + 's';
+    statusOverlay.textContent = (idx+1) + ' / ' + words.length + '  ·  ~' + timeStr + ' remaining';
+    progressBar.style.width = (words.length > 1 ? Math.round((idx/(words.length-1))*100) : 100) + '%';
+  }
+
+  function showWord(i) {
+    if (!words.length) return;
+    idx = Math.max(0, Math.min(i, words.length - 1));
+    renderWord(words[idx]);
+    updateStatus();
+    backBtn.disabled = idx === 0;
+    fwdBtn.disabled  = idx >= words.length - 1;
+  }
+
+  // ── Timing ────────────────────────────────────────────────────────────────
+  function getDelay(word) {
+    const base = 60000 / wpm;
+    if (word.length > 10) return base * 1.8;
+    if (word.length > 6)  return base * 1.3;
+    if (/[.!?]/.test(word)) return base * 2.2;
+    if (/[,;:—]/.test(word)) return base * 1.5;
+    return base;
+  }
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  function setPlayingUI() {
+    contextViewer.classList.remove('visible');
+    textInputArea.classList.add('hidden');
+    pasteToggleBtn.textContent = 'show text';
+    pasteBoxVisible = false;
+  }
+
+  function setPausedUI() {
+    buildContext();
+    contextViewer.classList.add('visible');
+    if (pasteBoxVisible) {
+      textInputArea.classList.remove('hidden');
+      pasteToggleBtn.textContent = 'hide text';
+    }
+  }
+
+  function togglePasteBox() {
+    pasteBoxVisible = !pasteBoxVisible;
+    textInputArea.classList.toggle('hidden', !pasteBoxVisible);
+    pasteToggleBtn.textContent = pasteBoxVisible ? 'hide text' : 'show text';
+  }
+
+  // ── Playback ──────────────────────────────────────────────────────────────
+  function tick() {
+    if (idx >= words.length - 1) { stop(); statusOverlay.textContent = 'done'; return; }
+    idx++;
+    renderWord(words[idx]);
+    updateStatus();
+    backBtn.disabled = idx === 0;
+    fwdBtn.disabled  = idx >= words.length - 1;
+    timer = setTimeout(tick, getDelay(words[idx]));
+  }
+
+  function play() {
+    if (!words.length) return;
+    if (idx >= words.length - 1) idx = 0;
+    playing = true;
+    playBtn.textContent = 'pause';
+    setPlayingUI();
+    timer = setTimeout(tick, getDelay(words[idx]));
+  }
+
+  function stop() {
+    playing = false; clearTimeout(timer);
+    playBtn.textContent = 'play';
+    setPausedUI();
+  }
+
+  function togglePlay() { if (!words.length) return; playing ? stop() : play(); }
+
+  function resetReader() {
+    stop(); idx = 0;
+    pasteBoxVisible = true;
+    textInputArea.classList.remove('hidden');
+    pasteToggleBtn.textContent = 'hide text';
+    if (words.length) { showWord(0); buildContext(); contextViewer.classList.add('visible'); }
+    else {
+      elBefore.textContent = ''; elPivot.textContent = 'paste text below'; elAfter.textContent = '';
+      progressBar.style.width = '0%'; statusOverlay.textContent = '';
+      contextViewer.classList.remove('visible');
+    }
+  }
+
+  function stepBack()    { stop(); showWord(idx - 1); }
+  function stepForward() { stop(); showWord(idx + 1); }
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+  function updateWpm(v) {
+    wpm = Math.max(50, Math.min(1000, v));
+    document.getElementById('wpm-num').textContent = wpm;
+    document.getElementById('wpm-slider').value = wpm;
+  }
+  function stepWpm(delta) { updateWpm(wpm + delta); }
+
+  function updateSize(v) {
+    fontSize = parseInt(v);
+    document.getElementById('size-val').textContent = fontSize + ' px';
+    const px = fontSize + 'px';
+    elBefore.style.fontSize = px; elPivot.style.fontSize = px; elAfter.style.fontSize = px;
+  }
+
+  function toggleTheme() {
+    isLight = !isLight;
+    app.classList.toggle('light', isLight);
+    document.body.style.background = isLight ? '#f5f5f2' : '#0a0a0a';
+    document.getElementById('theme-btn').textContent = isLight ? 'dark mode' : 'light mode';
+  }
+
+  function onTextChange() {
+    const raw = document.getElementById('text-input').value;
+    words = parseText(raw);
+    document.getElementById('word-counter').textContent = words.length + ' words';
+    stop(); idx = 0;
+    if (words.length) { showWord(0); }
+    else {
+      elBefore.textContent = ''; elPivot.textContent = 'paste text below'; elAfter.textContent = '';
+      progressBar.style.width = '0%'; statusOverlay.textContent = '';
+      contextViewer.classList.remove('visible');
+      backBtn.disabled = true; fwdBtn.disabled = true;
+    }
+  }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  document.addEventListener('keydown', function(e) {
+    if (e.target === document.getElementById('text-input')) return;
+    if (e.code === 'Space')      { e.preventDefault(); togglePlay(); }
+    if (e.code === 'ArrowLeft')  { e.preventDefault(); stepBack(); }
+    if (e.code === 'ArrowRight') { e.preventDefault(); stepForward(); }
+    if (e.code === 'ArrowUp')    { e.preventDefault(); stepWpm(10); }
+    if (e.code === 'ArrowDown')  { e.preventDefault(); stepWpm(-10); }
+  });
+</script>
+</body>
+</html>
