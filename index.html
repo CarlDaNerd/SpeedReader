@@ -77,44 +77,19 @@
     #context-scroll::-webkit-scrollbar-track { background: transparent; }
     #context-scroll::-webkit-scrollbar-thumb { background: var(--border3); border-radius: 2px; }
     #context-text { white-space: normal; word-break: break-word; }
-
     .ctx-word {
-      cursor: pointer;
-      border-radius: 2px;
-      padding: 1px 1px;
+      cursor: pointer; border-radius: 2px; padding: 1px 1px;
       transition: background 0.1s, color 0.1s;
     }
-    .ctx-word:hover {
-      background: var(--border3);
-      color: var(--text);
-    }
+    .ctx-word:hover { background: var(--border3); color: var(--text); }
     .ctx-current {
-      background: #ff6600;
-      color: #111;
-      border-radius: 3px;
-      padding: 1px 3px;
-      font-weight: 500;
-      cursor: pointer;
+      background: #ff6600; color: #111;
+      border-radius: 3px; padding: 1px 3px; font-weight: 500; cursor: pointer;
     }
-    .ctx-word:focus, .ctx-current:focus, .btn:focus {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-    /* Subtle inner top accent on focus to avoid surrounding orange border
-       Also persist the accent while playing by checking aria-pressed="true" */
-    #display-area:focus,
-    #display-area[aria-pressed="true"] {
-      outline: none;
-      box-shadow: inset 0 2px 0 0 var(--accent);
-    }
-    #app.light .ctx-current {
-      background: #ff6600;
-      color: #fff;
-    }
+    #app.light .ctx-current { background: #ff6600; color: #fff; }
     .ctx-hint {
       font-size: 11px; color: var(--text4);
-      text-align: center; padding: 4px 0 0;
-      letter-spacing: 0.05em;
+      text-align: center; padding: 4px 0 0; letter-spacing: 0.05em;
     }
 
     /* ── Progress bar ── */
@@ -167,16 +142,83 @@
       border-radius: 3px; padding: 5px 6px;
     }
     .sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; }
+
+    /* ── End screen ── */
+    #end-screen {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      z-index: 10;
+      animation: fadeIn 0.3s ease;
+    }
+    #end-screen.visible { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .end-title {
+      font-size: 13px; letter-spacing: 0.15em; color: var(--text4);
+      text-transform: uppercase;
+    }
+    .end-stats {
+      display: flex; gap: 48px; align-items: flex-start;
+    }
+    .end-stat {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .end-stat-value {
+      font-size: 52px; font-weight: 400; color: var(--accent);
+      letter-spacing: -0.02em; line-height: 1;
+    }
+    .end-stat-label {
+      font-size: 11px; color: var(--text4); letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .end-divider {
+      width: 1px; height: 60px; background: var(--border2);
+      align-self: center;
+    }
+    .end-btn-row {
+      display: flex; gap: 10px;
+    }
   </style>
 </head>
 <body>
 <div id="app">
 
-  <div id="display-area" onclick="togglePlay()" tabindex="0" role="button" aria-label="Toggle play/pause" aria-pressed="false">
+  <!-- End screen overlay (shown on completion) -->
+  <div id="end-screen">
+    <div class="end-title">session complete</div>
+    <div class="end-stats">
+      <div class="end-stat">
+        <span class="end-stat-value" id="end-wpm">—</span>
+        <span class="end-stat-label">avg wpm</span>
+      </div>
+      <div class="end-divider"></div>
+      <div class="end-stat">
+        <span class="end-stat-value" id="end-time">—</span>
+        <span class="end-stat-label">reading time</span>
+      </div>
+      <div class="end-divider"></div>
+      <div class="end-stat">
+        <span class="end-stat-value" id="end-words">—</span>
+        <span class="end-stat-label">words read</span>
+      </div>
+    </div>
+    <div class="end-btn-row">
+      <button class="btn primary" onclick="closeEndScreen()">close</button>
+      <button class="btn" onclick="resetReader()">read again</button>
+    </div>
+  </div>
+
+  <div id="display-area" onclick="togglePlay()">
     <span id="word-before"></span>
-    <span id="word-pivot" role="status" aria-live="polite" aria-atomic="true">paste text below</span>
+    <span id="word-pivot">paste text below</span>
     <span id="word-after"></span>
-    <div id="status-overlay" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="status-overlay"></div>
   </div>
 
   <div id="context-viewer">
@@ -189,7 +231,7 @@
   <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
 
   <div id="text-input-area">
-    <textarea id="text-input" placeholder="Paste your text here..." oninput="onTextChange()" aria-label="Paste text to read"></textarea>
+    <textarea id="text-input" placeholder="Paste your text here..." oninput="onTextChange()"></textarea>
     <div id="word-counter">0 words</div>
   </div>
 
@@ -215,8 +257,8 @@
       <button class="btn" onclick="stepBack()" id="back-btn" disabled>&#8592; back</button>
       <button class="btn" onclick="stepForward()" id="fwd-btn" disabled>forward &#8594;</button>
       <div class="sep"></div>
-      <button class="btn" id="paste-toggle-btn" onclick="togglePasteBox()" aria-pressed="true">hide text</button>
-      <button class="btn" id="theme-btn" onclick="toggleTheme()" aria-pressed="false">light mode</button>
+      <button class="btn" id="paste-toggle-btn" onclick="togglePasteBox()">hide text</button>
+      <button class="btn" id="theme-btn" onclick="toggleTheme()">light mode</button>
     </div>
   </div>
 
@@ -224,6 +266,14 @@
 <script>
   let words = [], idx = 0, playing = false, timer = null, wpm = 700, fontSize = 48, isLight = false;
   let pasteBoxVisible = true;
+
+  // ── Session timing ────────────────────────────────────────────────────────
+  // Tracks only active playback time, excluding pauses.
+  // playStartTime: timestamp when play() was most recently called.
+  // totalPlayMs: accumulated milliseconds of active playback across all play/pause cycles.
+  let playStartTime = null;
+  let totalPlayMs   = 0;
+  let wordsReadCount = 0;
 
   const elBefore       = document.getElementById('word-before');
   const elPivot        = document.getElementById('word-pivot');
@@ -239,7 +289,7 @@
   const contextText    = document.getElementById('context-text');
   const textInputArea  = document.getElementById('text-input-area');
   const pasteToggleBtn = document.getElementById('paste-toggle-btn');
-  const displayArea    = document.getElementById('display-area');
+  const endScreen      = document.getElementById('end-screen');
 
   // ── Text parser ───────────────────────────────────────────────────────────
   function parseText(raw) {
@@ -276,7 +326,6 @@
   }
 
   // ── Context viewer ────────────────────────────────────────────────────────
-  // Renders ALL words as clickable spans. Scrolls current word into view.
   function buildContext() {
     if (!words.length) { contextText.innerHTML = ''; return; }
     const frag = document.createDocumentFragment();
@@ -284,14 +333,8 @@
       const span = document.createElement('span');
       span.textContent = word;
       span.className = i === idx ? 'ctx-current' : 'ctx-word';
-      span.tabIndex = 0;
-      span.setAttribute('role', 'button');
-      span.setAttribute('aria-label', 'Jump to word ' + (i+1));
       span.dataset.i = i;
       span.addEventListener('click', function() { jumpTo(parseInt(this.dataset.i)); });
-      span.addEventListener('keydown', function(e) {
-        if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); jumpTo(parseInt(this.dataset.i)); }
-      });
       frag.appendChild(span);
       if (i < words.length - 1) frag.appendChild(document.createTextNode(' '));
     });
@@ -300,7 +343,6 @@
     scrollCurrentIntoView();
   }
 
-  // Update just the highlight classes without rebuilding the whole DOM
   function updateContextHighlight() {
     const spans = contextText.querySelectorAll('span');
     spans.forEach(span => {
@@ -314,17 +356,13 @@
     requestAnimationFrame(() => {
       const current = contextText.querySelector('.ctx-current');
       if (!current) return;
-      const scrollTop = contextScroll.scrollTop;
-      const scrollH   = contextScroll.clientHeight;
-      const elTop     = current.offsetTop;
-      const elH       = current.offsetHeight;
-      // Keep current word vertically centred in the scroll area
-      const target = elTop - (scrollH / 2) + (elH / 2);
-      contextScroll.scrollTop = target;
+      const scrollH = contextScroll.clientHeight;
+      const elTop   = current.offsetTop;
+      const elH     = current.offsetHeight;
+      contextScroll.scrollTop = elTop - (scrollH / 2) + (elH / 2);
     });
   }
 
-  // Jump to a word index and stay paused
   function jumpTo(i) {
     idx = Math.max(0, Math.min(i, words.length - 1));
     renderWord(words[idx]);
@@ -362,17 +400,57 @@
     return base;
   }
 
+  // ── Session timing helpers ────────────────────────────────────────────────
+  // Call when playback starts to record the start timestamp.
+  function startTiming() {
+    playStartTime = Date.now();
+  }
+
+  // Call when playback pauses or stops to accumulate elapsed time.
+  function pauseTiming() {
+    if (playStartTime !== null) {
+      totalPlayMs += Date.now() - playStartTime;
+      playStartTime = null;
+    }
+  }
+
+  // Returns the total active playback time in milliseconds,
+  // including any currently running segment.
+  function getActiveTotalMs() {
+    let total = totalPlayMs;
+    if (playStartTime !== null) total += Date.now() - playStartTime;
+    return total;
+  }
+
+  // ── End screen ────────────────────────────────────────────────────────────
+  function showEndScreen() {
+    const totalMs  = getActiveTotalMs();
+    const totalMin = totalMs / 60000;
+    const avgWpm   = totalMin > 0 ? Math.round(wordsReadCount / totalMin) : 0;
+
+    // Format time as Xm Ys or just Xs for short reads
+    const totalSec = Math.round(totalMs / 1000);
+    const timeStr  = totalSec >= 60
+      ? Math.floor(totalSec / 60) + 'm ' + (totalSec % 60) + 's'
+      : totalSec + 's';
+
+    document.getElementById('end-wpm').textContent   = avgWpm;
+    document.getElementById('end-time').textContent  = timeStr;
+    document.getElementById('end-words').textContent = wordsReadCount;
+
+    endScreen.classList.add('visible');
+  }
+
+  function closeEndScreen() {
+    endScreen.classList.remove('visible');
+  }
+
   // ── UI state ──────────────────────────────────────────────────────────────
   function setPlayingUI() {
     contextViewer.classList.remove('visible');
     textInputArea.classList.add('hidden');
     pasteToggleBtn.textContent = 'show text';
     pasteBoxVisible = false;
-    // reflect accessible state
-    pasteToggleBtn.setAttribute('aria-pressed', 'false');
-    displayArea.setAttribute('aria-pressed', 'true');
-    playBtn.setAttribute('aria-pressed', 'true');
-    textInputArea.setAttribute('aria-hidden', 'true');
   }
 
   function setPausedUI() {
@@ -382,24 +460,27 @@
       textInputArea.classList.remove('hidden');
       pasteToggleBtn.textContent = 'hide text';
     }
-    // reflect accessible state
-    pasteToggleBtn.setAttribute('aria-pressed', pasteBoxVisible ? 'true' : 'false');
-    displayArea.setAttribute('aria-pressed', 'false');
-    playBtn.setAttribute('aria-pressed', 'false');
-    textInputArea.setAttribute('aria-hidden', pasteBoxVisible ? 'false' : 'true');
   }
 
   function togglePasteBox() {
     pasteBoxVisible = !pasteBoxVisible;
     textInputArea.classList.toggle('hidden', !pasteBoxVisible);
     pasteToggleBtn.textContent = pasteBoxVisible ? 'hide text' : 'show text';
-    pasteToggleBtn.setAttribute('aria-pressed', pasteBoxVisible ? 'true' : 'false');
   }
 
   // ── Playback ──────────────────────────────────────────────────────────────
   function tick() {
-    if (idx >= words.length - 1) { stop(); statusOverlay.textContent = 'done'; return; }
+    if (idx >= words.length - 1) {
+      // Finished — record final timing segment then show end screen
+      pauseTiming();
+      playing = false;
+      playBtn.textContent = 'play';
+      setPausedUI();
+      showEndScreen();
+      return;
+    }
     idx++;
+    wordsReadCount++;
     renderWord(words[idx]);
     updateStatus();
     backBtn.disabled = idx === 0;
@@ -412,23 +493,29 @@
     if (idx >= words.length - 1) idx = 0;
     playing = true;
     playBtn.textContent = 'pause';
-    playBtn.setAttribute('aria-pressed', 'true');
+    startTiming();
     setPlayingUI();
     timer = setTimeout(tick, getDelay(words[idx]));
   }
 
   function stop() {
-    playing = false; clearTimeout(timer);
+    playing = false;
+    clearTimeout(timer);
+    pauseTiming();
     playBtn.textContent = 'play';
-    playBtn.setAttribute('aria-pressed', 'false');
-    displayArea.setAttribute('aria-pressed', 'false');
     setPausedUI();
   }
 
   function togglePlay() { if (!words.length) return; playing ? stop() : play(); }
 
   function resetReader() {
-    stop(); idx = 0;
+    stop();
+    // Reset all session tracking
+    totalPlayMs    = 0;
+    playStartTime  = null;
+    wordsReadCount = 0;
+    idx = 0;
+    closeEndScreen();
     pasteBoxVisible = true;
     textInputArea.classList.remove('hidden');
     pasteToggleBtn.textContent = 'hide text';
@@ -463,14 +550,18 @@
     app.classList.toggle('light', isLight);
     document.body.style.background = isLight ? '#f5f5f2' : '#0a0a0a';
     document.getElementById('theme-btn').textContent = isLight ? 'dark mode' : 'light mode';
-    document.getElementById('theme-btn').setAttribute('aria-pressed', isLight ? 'true' : 'false');
   }
 
   function onTextChange() {
     const raw = document.getElementById('text-input').value;
     words = parseText(raw);
     document.getElementById('word-counter').textContent = words.length + ' words';
+    // Reset session tracking whenever new text is loaded
+    totalPlayMs    = 0;
+    playStartTime  = null;
+    wordsReadCount = 0;
     stop(); idx = 0;
+    closeEndScreen();
     if (words.length) { showWord(0); }
     else {
       elBefore.textContent = ''; elPivot.textContent = 'paste text below'; elAfter.textContent = '';
@@ -481,24 +572,17 @@
   }
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
-  // allow the displayed area to toggle with Enter/Space when focused
-  displayArea.addEventListener('keydown', function(e) {
-    if (e.target !== displayArea) return;
-    const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
-    const isEnter = e.key === 'Enter' || e.code === 'Enter';
-    if (isSpace || isEnter) { e.preventDefault(); e.stopPropagation(); togglePlay(); }
-  });
-
-  // Global keyboard shortcuts (ignore typing in the textarea)
   document.addEventListener('keydown', function(e) {
-    const target = e.target;
-    if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')) return;
-    const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
-    if (isSpace)      { e.preventDefault(); togglePlay(); return; }
-    if (e.code === 'ArrowLeft' || e.key === 'ArrowLeft')  { e.preventDefault(); stepBack(); }
-    if (e.code === 'ArrowRight' || e.key === 'ArrowRight') { e.preventDefault(); stepForward(); }
-    if (e.code === 'ArrowUp' || e.key === 'ArrowUp')    { e.preventDefault(); stepWpm(10); }
-    if (e.code === 'ArrowDown' || e.key === 'ArrowDown')  { e.preventDefault(); stepWpm(-10); }
+    if (e.target === document.getElementById('text-input')) return;
+    // Allow Escape to close end screen
+    if (e.code === 'Escape' && endScreen.classList.contains('visible')) {
+      closeEndScreen(); return;
+    }
+    if (e.code === 'Space')      { e.preventDefault(); togglePlay(); }
+    if (e.code === 'ArrowLeft')  { e.preventDefault(); stepBack(); }
+    if (e.code === 'ArrowRight') { e.preventDefault(); stepForward(); }
+    if (e.code === 'ArrowUp')    { e.preventDefault(); stepWpm(10); }
+    if (e.code === 'ArrowDown')  { e.preventDefault(); stepWpm(-10); }
   });
 </script>
 </body>
