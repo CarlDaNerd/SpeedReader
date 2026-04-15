@@ -4,6 +4,7 @@
   window.__srInjected = true;
 
   let words = [], idx = 0, playing = false, timer = null, wpm = 700, fontSize = 44, isLight = false;
+  let playStartTime = null, totalPlayMs = 0, wordsReadCount = 0;
   let pasteBoxVisible = true;
   let overlay = null;
 
@@ -15,7 +16,29 @@
     overlay.id = 'sr-overlay';
     overlay.innerHTML = `
       <div id="sr-panel">
-
+        <div id="sr-end-screen">
+          <div class="sr-end-title">session complete</div>
+          <div class="sr-end-stats">
+            <div class="sr-end-stat">
+              <span class="sr-end-stat-value" id="sr-end-wpm">—</span>
+              <span class="sr-end-stat-label">avg wpm</span>
+            </div>
+            <div class="sr-end-divider"></div>
+            <div class="sr-end-stat">
+              <span class="sr-end-stat-value" id="sr-end-time">—</span>
+              <span class="sr-end-stat-label">reading time</span>
+            </div>
+            <div class="sr-end-divider"></div>
+            <div class="sr-end-stat">
+              <span class="sr-end-stat-value" id="sr-end-words">—</span>
+              <span class="sr-end-stat-label">words read</span>
+            </div>
+          </div>
+          <div class="sr-end-btn-row">
+            <button class="sr-btn sr-primary" id="sr-end-close">close</button>
+            <button class="sr-btn" id="sr-end-again">read again</button>
+          </div>
+        </div>
         <div id="sr-display" title="Click to play / pause">
           <span id="sr-before"></span>
           <span id="sr-pivot">select text &amp; right-click</span>
@@ -71,6 +94,8 @@
     document.body.appendChild(overlay);
     attachListeners();
     loadSettings();
+    g('sr-end-close').addEventListener('click', closeEndScreen);
+    g('sr-end-again').addEventListener('click', resetReader);
   }
 
   // ── Wire up all listeners ────────────────────────────────────────────────
@@ -163,6 +188,9 @@
   }
 
   function onPasteChange(raw) {
+    totalPlayMs = 0; playStartTime = null; 
+    wordsReadCount = 0;
+    closeEndScreen();
     doStop(); idx = 0;
     words = parseText(raw);
     g('sr-word-count').textContent = words.length + ' words';
@@ -293,8 +321,9 @@
 
   // ── Playback ─────────────────────────────────────────────────────────────
   function tick() {
-    if (idx >= words.length - 1) { saveSettings(); setTimeout(() => { if (overlay) { overlay.remove(); overlay = null; } document.removeEventListener('keydown', onKey); window.__srInjected = false; }, 250); return; }
+    if (idx >= words.length - 1) { pauseTiming(); playing = false; if (g('sr-play-btn')) g('sr-play-btn').textContent = 'play'; setPausedUI(); showEndScreen(); return; }
     idx++;
+    wordsReadCount++;
     renderWord(words[idx]);
     updateStatus();
     g('sr-back-btn').disabled = idx === 0;
@@ -306,6 +335,7 @@
     if (!words.length) return;
     if (idx >= words.length - 1) idx = 0;
     playing = true;
+    startTiming();
     g('sr-play-btn').textContent = 'pause';
     setPlayingUI();
     timer = setTimeout(tick, getDelay(words[idx]));
@@ -313,6 +343,7 @@
 
   function doStop() {
     playing = false; clearTimeout(timer);
+    pauseTiming();
     if (g('sr-play-btn')) g('sr-play-btn').textContent = 'play';
     setPausedUI();
   }
@@ -320,6 +351,9 @@
   function togglePlay() { if (!words.length) return; playing ? doStop() : play(); }
 
   function resetReader() {
+    totalPlayMs = 0; playStartTime = null; 
+    wordsReadCount = 0;
+    closeEndScreen();
     doStop(); idx = 0;
     pasteBoxVisible = true;
     g('sr-paste-area').classList.remove('sr-hidden');
@@ -356,6 +390,37 @@
     if (panel) panel.classList.toggle('sr-light', isLight);
     if (overlay) overlay.classList.toggle('sr-light-mode', isLight);
     const tb = g('sr-theme-btn'); if (tb) tb.textContent = isLight ? 'dark mode' : 'light mode';
+  }
+  function startTiming() {
+    playStartTime = Date.now();
+  }
+
+  function pauseTiming() {
+    if (playStartTime !== null) {
+      totalPlayMs += Date.now() - playStartTime;
+      playStartTime = null;
+    }
+  }
+
+  function showEndScreen() {
+    const totalMs  = totalPlayMs;
+    const totalMin = totalMs / 60000;
+    const avgWpm   = totalMin > 0 ? Math.round(wordsReadCount / totalMin) : 0;
+    const totalSec = Math.round(totalMs / 1000);
+    const timeStr  = totalSec >= 60
+      ? Math.floor(totalSec / 60) + 'm ' + (totalSec % 60) + 's'
+      : totalSec + 's';
+    const es = g('sr-end-screen');
+    if (!es) return;
+    g('sr-end-wpm').textContent   = avgWpm;
+    g('sr-end-time').textContent  = timeStr;
+    g('sr-end-words').textContent = wordsReadCount;
+    es.classList.add('sr-visible');
+  }
+
+  function closeEndScreen() {
+    const es = g('sr-end-screen');
+    if (es) es.classList.remove('sr-visible');
   }
 
   // ── Message listener (from background.js) ────────────────────────────────
