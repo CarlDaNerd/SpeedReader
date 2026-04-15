@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Speed Reader",
-  "version": "1.1",
+  "version": "1.2.0",
   "description": "RSVP speed reader — select text on any page and read it fast.",
   "permissions": [
     "contextMenus",
