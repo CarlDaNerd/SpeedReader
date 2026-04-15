@@ -96,6 +96,17 @@
       font-weight: 500;
       cursor: pointer;
     }
+    .ctx-word:focus, .ctx-current:focus, .btn:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    /* Subtle inner top accent on focus to avoid surrounding orange border
+       Also persist the accent while playing by checking aria-pressed="true" */
+    #display-area:focus,
+    #display-area[aria-pressed="true"] {
+      outline: none;
+      box-shadow: inset 0 2px 0 0 var(--accent);
+    }
     #app.light .ctx-current {
       background: #ff6600;
       color: #fff;
@@ -161,11 +172,11 @@
 <body>
 <div id="app">
 
-  <div id="display-area" onclick="togglePlay()">
+  <div id="display-area" onclick="togglePlay()" tabindex="0" role="button" aria-label="Toggle play/pause" aria-pressed="false">
     <span id="word-before"></span>
-    <span id="word-pivot">paste text below</span>
+    <span id="word-pivot" role="status" aria-live="polite" aria-atomic="true">paste text below</span>
     <span id="word-after"></span>
-    <div id="status-overlay"></div>
+    <div id="status-overlay" role="status" aria-live="polite" aria-atomic="true"></div>
   </div>
 
   <div id="context-viewer">
@@ -178,7 +189,7 @@
   <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
 
   <div id="text-input-area">
-    <textarea id="text-input" placeholder="Paste your text here..." oninput="onTextChange()"></textarea>
+    <textarea id="text-input" placeholder="Paste your text here..." oninput="onTextChange()" aria-label="Paste text to read"></textarea>
     <div id="word-counter">0 words</div>
   </div>
 
@@ -204,8 +215,8 @@
       <button class="btn" onclick="stepBack()" id="back-btn" disabled>&#8592; back</button>
       <button class="btn" onclick="stepForward()" id="fwd-btn" disabled>forward &#8594;</button>
       <div class="sep"></div>
-      <button class="btn" id="paste-toggle-btn" onclick="togglePasteBox()">hide text</button>
-      <button class="btn" id="theme-btn" onclick="toggleTheme()">light mode</button>
+      <button class="btn" id="paste-toggle-btn" onclick="togglePasteBox()" aria-pressed="true">hide text</button>
+      <button class="btn" id="theme-btn" onclick="toggleTheme()" aria-pressed="false">light mode</button>
     </div>
   </div>
 
@@ -228,6 +239,7 @@
   const contextText    = document.getElementById('context-text');
   const textInputArea  = document.getElementById('text-input-area');
   const pasteToggleBtn = document.getElementById('paste-toggle-btn');
+  const displayArea    = document.getElementById('display-area');
 
   // ── Text parser ───────────────────────────────────────────────────────────
   function parseText(raw) {
@@ -272,8 +284,14 @@
       const span = document.createElement('span');
       span.textContent = word;
       span.className = i === idx ? 'ctx-current' : 'ctx-word';
+      span.tabIndex = 0;
+      span.setAttribute('role', 'button');
+      span.setAttribute('aria-label', 'Jump to word ' + (i+1));
       span.dataset.i = i;
       span.addEventListener('click', function() { jumpTo(parseInt(this.dataset.i)); });
+      span.addEventListener('keydown', function(e) {
+        if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); jumpTo(parseInt(this.dataset.i)); }
+      });
       frag.appendChild(span);
       if (i < words.length - 1) frag.appendChild(document.createTextNode(' '));
     });
@@ -350,6 +368,11 @@
     textInputArea.classList.add('hidden');
     pasteToggleBtn.textContent = 'show text';
     pasteBoxVisible = false;
+    // reflect accessible state
+    pasteToggleBtn.setAttribute('aria-pressed', 'false');
+    displayArea.setAttribute('aria-pressed', 'true');
+    playBtn.setAttribute('aria-pressed', 'true');
+    textInputArea.setAttribute('aria-hidden', 'true');
   }
 
   function setPausedUI() {
@@ -359,12 +382,18 @@
       textInputArea.classList.remove('hidden');
       pasteToggleBtn.textContent = 'hide text';
     }
+    // reflect accessible state
+    pasteToggleBtn.setAttribute('aria-pressed', pasteBoxVisible ? 'true' : 'false');
+    displayArea.setAttribute('aria-pressed', 'false');
+    playBtn.setAttribute('aria-pressed', 'false');
+    textInputArea.setAttribute('aria-hidden', pasteBoxVisible ? 'false' : 'true');
   }
 
   function togglePasteBox() {
     pasteBoxVisible = !pasteBoxVisible;
     textInputArea.classList.toggle('hidden', !pasteBoxVisible);
     pasteToggleBtn.textContent = pasteBoxVisible ? 'hide text' : 'show text';
+    pasteToggleBtn.setAttribute('aria-pressed', pasteBoxVisible ? 'true' : 'false');
   }
 
   // ── Playback ──────────────────────────────────────────────────────────────
@@ -383,6 +412,7 @@
     if (idx >= words.length - 1) idx = 0;
     playing = true;
     playBtn.textContent = 'pause';
+    playBtn.setAttribute('aria-pressed', 'true');
     setPlayingUI();
     timer = setTimeout(tick, getDelay(words[idx]));
   }
@@ -390,6 +420,8 @@
   function stop() {
     playing = false; clearTimeout(timer);
     playBtn.textContent = 'play';
+    playBtn.setAttribute('aria-pressed', 'false');
+    displayArea.setAttribute('aria-pressed', 'false');
     setPausedUI();
   }
 
@@ -431,6 +463,7 @@
     app.classList.toggle('light', isLight);
     document.body.style.background = isLight ? '#f5f5f2' : '#0a0a0a';
     document.getElementById('theme-btn').textContent = isLight ? 'dark mode' : 'light mode';
+    document.getElementById('theme-btn').setAttribute('aria-pressed', isLight ? 'true' : 'false');
   }
 
   function onTextChange() {
@@ -448,13 +481,24 @@
   }
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // allow the displayed area to toggle with Enter/Space when focused
+  displayArea.addEventListener('keydown', function(e) {
+    if (e.target !== displayArea) return;
+    const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
+    const isEnter = e.key === 'Enter' || e.code === 'Enter';
+    if (isSpace || isEnter) { e.preventDefault(); e.stopPropagation(); togglePlay(); }
+  });
+
+  // Global keyboard shortcuts (ignore typing in the textarea)
   document.addEventListener('keydown', function(e) {
-    if (e.target === document.getElementById('text-input')) return;
-    if (e.code === 'Space')      { e.preventDefault(); togglePlay(); }
-    if (e.code === 'ArrowLeft')  { e.preventDefault(); stepBack(); }
-    if (e.code === 'ArrowRight') { e.preventDefault(); stepForward(); }
-    if (e.code === 'ArrowUp')    { e.preventDefault(); stepWpm(10); }
-    if (e.code === 'ArrowDown')  { e.preventDefault(); stepWpm(-10); }
+    const target = e.target;
+    if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')) return;
+    const isSpace = e.key === ' ' || e.key === 'Spacebar' || e.code === 'Space';
+    if (isSpace)      { e.preventDefault(); togglePlay(); return; }
+    if (e.code === 'ArrowLeft' || e.key === 'ArrowLeft')  { e.preventDefault(); stepBack(); }
+    if (e.code === 'ArrowRight' || e.key === 'ArrowRight') { e.preventDefault(); stepForward(); }
+    if (e.code === 'ArrowUp' || e.key === 'ArrowUp')    { e.preventDefault(); stepWpm(10); }
+    if (e.code === 'ArrowDown' || e.key === 'ArrowDown')  { e.preventDefault(); stepWpm(-10); }
   });
 </script>
 </body>
