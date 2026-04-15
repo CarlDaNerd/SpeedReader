@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 220px;
+      background: #0d0d0d;
+      color: #f0f0f0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      padding: 14px 16px;
+    }
+    h2 {
+      font-size: 13px; font-weight: 500; letter-spacing: 0.04em;
+      margin-bottom: 10px; color: #f0f0f0;
+    }
+    p {
+      color: #888; line-height: 1.7; margin-bottom: 12px; font-size: 11px;
+    }
+    .step {
+      display: flex; gap: 8px; align-items: flex-start;
+      margin-bottom: 8px; font-size: 11px; color: #aaa;
+    }
+    .step-num {
+      color: #e63; font-weight: 500; min-width: 14px;
+    }
+    .divider { border: none; border-top: 1px solid #1e1e1e; margin: 12px 0; }
+    .shortcut-row {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: #666; margin-bottom: 5px;
+    }
+    .shortcut-row kbd {
+      background: #1a1a1a; border: 1px solid #333; border-radius: 2px;
+      padding: 1px 5px; font-family: inherit; font-size: 10px; color: #aaa;
+    }
+    .tag { color: #e63; }
+  </style>
+</head>
+<body>
+  <h2>Speed Reader</h2>
+  <div class="step"><span class="step-num">1.</span><span>Select text on any webpage</span></div>
+  <div class="step"><span class="step-num">2.</span><span>Right-click → <span class="tag">Speed Read selection</span></span></div>
+  <div class="step"><span class="step-num"> </span><span>or press <span class="tag">Alt+S</span></span></div>
+  <div class="step"><span class="step-num">3.</span><span>Reader opens as an overlay</span></div>
+
+  <hr class="divider">
+
+  <div class="shortcut-row"><span>Play / pause</span><kbd>Space</kbd></div>
+  <div class="shortcut-row"><span>Step word</span><kbd>← →</kbd></div>
+  <div class="shortcut-row"><span>WPM up / down</span><kbd>↑ ↓</kbd></div>
+  <div class="shortcut-row"><span>Close</span><kbd>Esc</kbd></div>
+</body>
+</html>
