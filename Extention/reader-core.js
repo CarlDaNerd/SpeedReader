@@ -1,7 +1,6 @@
 let words = [], idx = 0, playing = false, timer = null, wpm = 700, fontSize = 48, isLight = false;
   let pasteBoxVisible = true;
 
-  // This is a test to see if build.js is functioning correctly.
   // ── Session timing ────────────────────────────────────────────────────────
   // Tracks only active playback time, excluding pauses.
   // playStartTime: timestamp when play() was most recently called.
