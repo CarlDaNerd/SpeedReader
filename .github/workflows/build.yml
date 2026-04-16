@@ -3,7 +3,8 @@
 on:
   push:
     branches:
-      - consolidate
+      - main
+      - develop
 
 jobs:
   build:
@@ -15,7 +16,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Run build script
         run: node build.js
