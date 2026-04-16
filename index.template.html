@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speed Reader</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: #0a0a0a; }
+
+    #app {
+      --bg: #0a0a0a; --bg2: #0d0d0d; --bg3: #111;
+      --border: #222; --border2: #1e1e1e; --border3: #333;
+      --text: #f0f0f0; --text2: #aaa; --text3: #bbb; --text4: #555; --text5: #444;
+      --accent: #e63;
+      background: var(--bg); color: var(--text);
+      font-family: 'Courier New', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.2s, color 0.2s;
+    }
+    #app.light {
+      --bg: #f5f5f2; --bg2: #eeeee9; --bg3: #e8e8e2;
+      --border: #d8d8d0; --border2: #e0e0d8; --border3: #c8c8c0;
+      --text: #111; --text2: #555; --text3: #444; --text4: #aaa; --text5: #bbb;
+    }
+
+    /* ── Main flash display ── */
+    #display-area {
+      flex: 1 1 auto;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none; overflow: hidden;
+      min-height: 120px;
+    }
+    #word-before {
+      position: absolute; right: 50%;
+      font-size: 48px; font-weight: 400; letter-spacing: -0.02em;
+      font-family: 'Courier New', monospace; white-space: nowrap; color: var(--text);
+    }
+    #word-pivot {
+      position: absolute; left: 50%;
+      font-size: 48px; font-weight: 400; letter-spacing: -0.02em;
+      font-family: 'Courier New', monospace; white-space: nowrap; color: var(--accent);
+    }
+    #word-after {
+      position: absolute;
+      font-size: 48px; font-weight: 400; letter-spacing: -0.02em;
+      font-family: 'Courier New', monospace; white-space: nowrap; color: var(--text);
+    }
+    #status-overlay {
+      position: absolute; font-size: 11px; color: var(--text4);
+      bottom: 10px; left: 0; right: 0; text-align: center; letter-spacing: 0.06em;
+    }
+
+    /* ── Context viewer ── */
+    #context-viewer {
+      display: none;
+      flex: 0 0 auto;
+      border-bottom: 1px solid var(--border2);
+      background: var(--bg2);
+      position: relative;
+    }
+    #context-viewer.visible { display: block; }
+    #context-scroll {
+      padding: 12px 20px;
+      font-size: 14px; line-height: 2;
+      color: var(--text2);
+      max-height: 160px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    #context-scroll::-webkit-scrollbar { width: 4px; }
+    #context-scroll::-webkit-scrollbar-track { background: transparent; }
+    #context-scroll::-webkit-scrollbar-thumb { background: var(--border3); border-radius: 2px; }
+    #context-text { white-space: normal; word-break: break-word; }
+    .ctx-word {
+      cursor: pointer; border-radius: 2px; padding: 1px 1px;
+      transition: background 0.1s, color 0.1s;
+    }
+    .ctx-word:hover { background: var(--border3); color: var(--text); }
+    .ctx-current {
+      background: #ff6600; color: #111;
+      border-radius: 3px; padding: 1px 3px; font-weight: 500; cursor: pointer;
+    }
+    #app.light .ctx-current { background: #ff6600; color: #fff; }
+    .ctx-hint {
+      font-size: 11px; color: var(--text4);
+      text-align: center; padding: 4px 0 0; letter-spacing: 0.05em;
+    }
+
+    /* ── Progress bar ── */
+    #progress-bar-wrap { height: 2px; background: var(--border2); flex: 0 0 auto; }
+    #progress-bar { height: 2px; background: var(--accent); width: 0%; transition: width 0.1s linear; }
+
+    /* ── Paste box ── */
+    #text-input-area {
+      flex: 0 0 auto;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border2);
+      background: var(--bg);
+    }
+    #text-input-area.hidden { display: none; }
+    #text-input {
+      width: 100%; min-height: 80px; max-height: 200px;
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text3);
+      font-family: inherit; font-size: 13px; padding: 10px 12px;
+      resize: vertical; border-radius: 3px; line-height: 1.6; outline: none;
+    }
+    #text-input:focus { border-color: var(--text4); }
+    #word-counter { font-size: 11px; color: var(--text5); letter-spacing: 0.06em; margin-top: 6px; }
+
+    /* ── Controls ── */
+    #controls {
+      flex: 0 0 auto;
+      padding: 12px 20px; display: flex; flex-direction: column; gap: 10px;
+      background: var(--bg2);
+    }
+    .ctrl-row { display: flex; align-items: center; gap: 10px; }
+    .ctrl-label { font-size: 11px; color: var(--text4); letter-spacing: 0.08em; text-transform: uppercase; min-width: 42px; }
+    input[type=range] { flex: 1; accent-color: var(--accent); height: 2px; }
+    .ctrl-val { font-size: 13px; color: var(--text2); min-width: 52px; text-align: right; }
+    .btn-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .btn {
+      background: transparent; border: 1px solid var(--border3); color: var(--text2);
+      padding: 6px 14px; font-size: 12px; font-family: inherit; cursor: pointer;
+      border-radius: 3px; transition: background 0.12s, color 0.12s, border-color 0.12s;
+      letter-spacing: 0.04em;
+    }
+    .btn:hover { background: var(--bg3); color: var(--text); border-color: var(--text4); }
+    .btn.primary { border-color: var(--accent); color: var(--accent); }
+    .btn.primary:hover { background: var(--accent); color: var(--bg); }
+    .btn.icon { padding: 6px 10px; font-size: 15px; }
+    .btn:disabled { opacity: 0.3; cursor: default; }
+    .wpm-stepper { display: flex; align-items: center; gap: 4px; }
+    .wpm-stepper .wpm-num {
+      font-size: 13px; font-weight: 500; min-width: 48px; text-align: center;
+      color: var(--text); background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 3px; padding: 5px 6px;
+    }
+    .sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; }
+
+    /* ── End screen ── */
+    #end-screen {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      z-index: 10;
+      animation: fadeIn 0.3s ease;
+    }
+    #end-screen.visible { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .end-title {
+      font-size: 13px; letter-spacing: 0.15em; color: var(--text4);
+      text-transform: uppercase;
+    }
+    .end-stats {
+      display: flex; gap: 48px; align-items: flex-start;
+    }
+    .end-stat {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .end-stat-value {
+      font-size: 52px; font-weight: 400; color: var(--accent);
+      letter-spacing: -0.02em; line-height: 1;
+    }
+    .end-stat-label {
+      font-size: 11px; color: var(--text4); letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .end-divider {
+      width: 1px; height: 60px; background: var(--border2);
+      align-self: center;
+    }
+    .end-btn-row {
+      display: flex; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- End screen overlay (shown on completion) -->
+  <div id="end-screen">
+    <div class="end-title">session complete</div>
+    <div class="end-stats">
+      <div class="end-stat">
+        <span class="end-stat-value" id="end-wpm">—</span>
+        <span class="end-stat-label">avg wpm</span>
+      </div>
+      <div class="end-divider"></div>
+      <div class="end-stat">
+        <span class="end-stat-value" id="end-time">—</span>
+        <span class="end-stat-label">reading time</span>
+      </div>
+      <div class="end-divider"></div>
+      <div class="end-stat">
+        <span class="end-stat-value" id="end-words">—</span>
+        <span class="end-stat-label">words read</span>
+      </div>
+    </div>
+    <div class="end-btn-row">
+      <button class="btn primary" onclick="closeEndScreen()">close</button>
+      <button class="btn" onclick="resetReader()">read again</button>
+    </div>
+  </div>
+
+  <div id="display-area" onclick="togglePlay()">
+    <span id="word-before"></span>
+    <span id="word-pivot">paste text below</span>
+    <span id="word-after"></span>
+    <div id="status-overlay"></div>
+  </div>
+
+  <div id="context-viewer">
+    <div id="context-scroll">
+      <div id="context-text"></div>
+    </div>
+    <div class="ctx-hint">click any word to jump there</div>
+  </div>
+
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+
+  <div id="text-input-area">
+    <textarea id="text-input" placeholder="Paste your text here..." oninput="onTextChange()"></textarea>
+    <div id="word-counter">0 words</div>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">WPM</span>
+      <div class="wpm-stepper">
+        <button class="btn icon" onclick="stepWpm(-10)">&#8722;</button>
+        <span class="wpm-num" id="wpm-num">700</span>
+        <button class="btn icon" onclick="stepWpm(10)">+</button>
+      </div>
+      <input type="range" id="wpm-slider" min="50" max="1000" step="10" value="700" oninput="updateWpm(parseInt(this.value))">
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Size</span>
+      <input type="range" id="size-slider" min="20" max="96" step="2" value="48" oninput="updateSize(this.value)">
+      <span class="ctrl-val" id="size-val">48 px</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="play-btn" onclick="togglePlay()">play</button>
+      <button class="btn" onclick="resetReader()">reset</button>
+      <div class="sep"></div>
+      <button class="btn" onclick="stepBack()" id="back-btn" disabled>&#8592; back</button>
+      <button class="btn" onclick="stepForward()" id="fwd-btn" disabled>forward &#8594;</button>
+      <div class="sep"></div>
+      <button class="btn" id="paste-toggle-btn" onclick="togglePasteBox()">hide text</button>
+      <button class="btn" id="theme-btn" onclick="toggleTheme()">light mode</button>
+    </div>
+  </div>
+
+</div>
+<script>
+  // __READER_CORE__
+</script>
+</body>
+</html>
